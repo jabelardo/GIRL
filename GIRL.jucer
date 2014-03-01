@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="9ATM08h" name="GIRL" projectType="guiapp" version="1.0.0"
+              juceLinkage="amalg_multi" buildVST="1" buildRTAS="0" buildAU="1"
+              pluginName="Juce Project" pluginDesc="Juce Project" pluginManufacturer="yourcompany"
+              pluginManufacturerCode="Manu" pluginCode="Plug" pluginChannelConfigs="{1, 1}, {2, 2}"
+              pluginIsSynth="0" pluginWantsMidiIn="0" pluginProducesMidiOut="0"
+              pluginSilenceInIsSilenceOut="0" pluginTailLength="0" pluginEditorRequiresKeys="0"
+              pluginAUExportPrefix="JuceProjectAU" pluginAUViewClass="JuceProjectAU_V1"
+              pluginRTASCategory="" bundleIdentifier="com.jabelardo.GIRL" jucerVersion="3.0.0">
+  <EXPORTFORMATS>
+    <XCODE_MAC targetFolder="Builds/MacOSX" vstFolder="~/SDKs/vstsdk2.4" rtasFolder="~/SDKs/PT_80_SDK"
+               juceFolder="..\juce"/>
+    <VS2008 targetFolder="Builds/VisualStudio2008" vstFolder="c:\SDKs\vstsdk2.4"
+            rtasFolder="c:\SDKs\PT_80_SDK" libraryType="1" juceFolder="..\juce"/>
+    <LINUX_MAKE targetFolder="Builds/Linux" vstFolder="~/SDKs/vstsdk2.4" juceFolder="..\juce"/>
+  </EXPORTFORMATS>
+  <CONFIGURATIONS>
+    <CONFIGURATION name="Debug" isDebug="1" optimisation="1" targetName="GIRL" osxSDK="default"
+                   osxCompatibility="default"/>
+    <CONFIGURATION name="Release" isDebug="0" optimisation="2" targetName="GIRL"
+                   osxSDK="default" osxCompatibility="default"/>
+  </CONFIGURATIONS>
+  <MAINGROUP id="Iz8W1EA" name="GIRL">
+    <GROUP id="wQM8GU7" name="Source">
+      <FILE id="91bnVET" name="ConfigDocument.cpp" compile="1" resource="0"
+            file="Source\ConfigDocument.cpp"/>
+      <FILE id="fPe2P9U" name="ConfigDocument.h" compile="0" resource="0"
+            file="Source\ConfigDocument.h"/>
+      <FILE id="R5gTUk3" name="GirlMainComponent.cpp" compile="1" resource="0"
+            file="Source\GirlMainComponent.cpp"/>
+      <FILE id="0v2y1aR" name="GirlMainComponent.h" compile="0" resource="0"
+            file="Source\GirlMainComponent.h"/>
+      <FILE id="t8Bv0eI" name="Gsp1101.cpp" compile="1" resource="0" file="Source\Gsp1101.cpp"/>
+      <FILE id="a7qmjsl" name="Gsp1101.h" compile="0" resource="0" file="Source\Gsp1101.h"/>
+      <FILE id="24s51tP" name="UserCab.cpp" compile="1" resource="0" file="Source\UserCab.cpp"/>
+      <FILE id="DmjLDnz" name="UserCab.h" compile="0" resource="0" file="Source\UserCab.h"/>
+      <FILE id="ZxTxq3G" name="UserCabReader.cpp" compile="1" resource="0"
+            file="Source\UserCabReader.cpp"/>
+      <FILE id="GjTDl24" name="UserCabReader.h" compile="0" resource="0"
+            file="Source\UserCabReader.h"/>
+      <FILE id="j02jG6J" name="UtilString.cpp" compile="1" resource="0" file="Source\UtilString.cpp"/>
+      <FILE id="lhaglOd" name="UtilString.h" compile="0" resource="0" file="Source\UtilString.h"/>
+      <FILE id="lx5SZFy" name="Main.cpp" compile="1" resource="0" file="Source\Main.cpp"/>
+    </GROUP>
+  </MAINGROUP>
+  <JUCEOPTIONS JUCE_FORCE_DEBUG="default" JUCE_LOG_ASSERTIONS="default" JUCE_ASIO="default"
+               JUCE_WASAPI="default" JUCE_DIRECTSOUND="default" JUCE_ALSA="default"
+               JUCE_QUICKTIME="default" JUCE_OPENGL="default" JUCE_DIRECT2D="default"
+               JUCE_USE_FLAC="default" JUCE_USE_OGGVORBIS="default" JUCE_USE_CDBURNER="default"
+               JUCE_USE_CDREADER="default" JUCE_USE_CAMERA="default" JUCE_ENABLE_REPAINT_DEBUGGING="default"
+               JUCE_USE_XINERAMA="default" JUCE_USE_XSHM="default" JUCE_USE_XRENDER="default"
+               JUCE_USE_XCURSOR="default" JUCE_PLUGINHOST_VST="default" JUCE_PLUGINHOST_AU="default"
+               JUCE_ONLY_BUILD_CORE_LIBRARY="default" JUCE_WEB_BROWSER="default"
+               JUCE_SUPPORT_CARBON="default" JUCE_CHECK_MEMORY_LEAKS="default"
+               JUCE_CATCH_UNHANDLED_EXCEPTIONS="default"/>
+</JUCERPROJECT>

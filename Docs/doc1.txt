@@ -1,0 +1,339 @@
+Below is a code snippet of how I parse the wave file that holds the IR samples.
+It is a normal .wav file and I only use the first channel (if there is more than one channel).
+
+The code is nothing special.
+
+If the user selects left/mono then I allow 208 coefs otherwise I limit it to 128 coefs.
+
+The basic idea is to fill a buffer (called memImage) with coef data that I get from the .wav file.
+The samples are taken out and then scaled and then put into the buffer as 4 bytes.
+
+Each IR user cabinet takes up 2048-(name+cab index+permenant flag) bytes so I pad until the end.
+I add the name and the location index (0-9) then I add the last byte of the 2048 block to tell
+the GSP1101 to store the user cabinet permanently or just be temporary.
+
+
+Structure of the buffer "memImage"
+
+The first thing written (to the buffer) are these 4 bytes:
+   { 0x00, 0x5c, 0x00, 0x05, };
+   It is due to legacy code that is not used anymore but needs to be downloaded.
+   
+The next 8 bytes written to the buffer are:
+   { 0x00,0x05,0x00,0x00, 0x00,0x00,0x08,0x00, };
+   The next 4 bytes is the address location of where the cabinet should be placed, msb first.
+   The 0x00,0x05 doesn't change.  All the 10 cabs fit into one 64k block.
+   Since each cab takes 2048 bytes, the next two bytes will be:
+      msb of (2048*cab index), lsb of (2048*cab index)
+   
+   The next 4 bytes is the size of the cabinet, msb first.
+   The next 4 bytes is the number of coefs (128 or 208 only), again msb first.
+   The data for the coefs is next, again msb first.
+   
+   The buffer is then filled with 'FF' until we reach near the end of the 2k block.
+   This is where the cabinet name is placed.  The max size is 22 plus the null terminator.
+   The name is padded with spaces.
+   We are now on the second to last byte of the 2k block.
+   The next byte is the index number, i.e. the location of the user cab, 0 to 9.
+   The next byte is the permanence flag.
+      0 = no permanence, temporary
+      1 = GSP1101 will store the cabinet then rebuild user cab data then restart
+      2 = store cab to temp FLASH memory, this is so you can download multiple cabs
+            before making them all permanent at the same time (see forum)
+            
+
+You can use MIDI-OX to capture all the messages if you want to verify anything.
+The steps to a sysx message are:
+
+      1) header: F0 00 00 10 7F 7F 7F (procedure, download user cab is 7A)
+      2) body: 7 bit data (explained below)
+      3) ending: checksum byte followed by F7
+            the checksum is calculated by XORing all bytes after the F0
+            and before the checksum
+            
+You have to break up the buffer "memImage" into 256 byte messages (real 256 bytes
+which is bigger after splitting it into 7 bit data).
+After each sysx message is sent to the GSP1101 you will get a ACK or a NACK
+back from the GSP1101.
+
+A sysx ACK is:
+   F0 00 00 10 XX XX XX 7E 00 (procedure) (checksum) F7
+
+A sysx NACK is:
+   F0 00 00 10 XX XX XX 7F 00 (procedure) (err code) (checksum) F7
+
+
+
+
+One more message is needed to tell the GSP1101 that the user cab has been downloaded.
+      F0 00 00 10 7F 7F 7F (procedure 73) 00 01 (cab index) (permanence flag) (checksum) F7
+      
+You will also get a ACK or NACK for that message.
+
+NACK error codes:
+   #define SYSX_INVALID_CHECKSUM          7
+   #define MERR_OVERRUN                   10
+   #define MIDI_PROC_FAILED               12
+
+The body of the sysx message must be 7 bits only thus we have to convert from 8 bits to 7 bits:
+   Take the most significant bit of the next 7 bytes and create one 7 bit byte from them.
+   For example bit 6 equals bit 7 of the first byte and bit 5 equals bit 7 of the next byte, etc.
+   Send this byte out first.
+   Send the next 7 bytes out with their bit 7's cleared to 0.
+   Repeat until all data is out.
+   For example: data = 0x81, 0x82, 0x83, 0x84, 0x05, 0x06, 0x87
+   Your output would be: 0x79, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07
+   If the last group doesn't have 7 bytes then the same rule applies but you don't pad the data
+   For example: data = 0x91, 0x92, 0x03
+   Your output would be: 0x60, 0x11, 0x12, 0x03
+   
+
+
+Good luck and let me know how it goes.
+
+
+// *************************************************************
+
+      unsigned char hdrBuf[]= { 0x00, 0x5c, 0x00, 0x05, };
+      bytesRead = 4;
+      memImage->copyFrom(hdrBuf, address, bytesRead);
+      address += bytesRead;
+
+         // Find data area
+         inpF.read(buffer, 0x04);
+         if (inpF.isExhausted() || buffer[0] != 'R' || buffer[1] != 'I' || buffer[2] != 'F' || buffer[3] != 'F')
+         {
+            goToResults(MiscError, "Invalid Impulse File, not 'RIFF'");
+            return;
+         }
+         inpF.read(buffer, 0x04);      // ignore size of file
+         inpF.read(buffer, 0x04);
+         if (inpF.isExhausted() || buffer[0] != 'W' || buffer[1] != 'A' || buffer[2] != 'V' || buffer[3] != 'E')
+         {
+            goToResults(MiscError, "Invalid Impulse File, not 'WAVE'");
+            return;
+         }
+         inpF.read(buffer, 0x04);
+         if (inpF.isExhausted() || buffer[0] != 'f' || buffer[1] != 'm' || buffer[2] != 't' || buffer[3] != ' ')
+         {
+            goToResults(MiscError, "Invalid Impulse File, not 'fmt '");
+            return;
+         }
+         inpF.read(buffer, 0x04);   // 16 bytes if fmt
+         if (inpF.isExhausted() || buffer[0] != 0x10 || buffer[1] != 0 || buffer[2] != 0 || buffer[3] != 0)
+         {
+            goToResults(MiscError, "Invalid Impulse File, wrong fmt size");
+            return;
+         }
+         inpF.read(buffer, 0x02);   // audio fmt = 1
+         if (inpF.isExhausted() || buffer[0] != 0x01 || buffer[1] != 0)
+         {
+            goToResults(MiscError, "Invalid Impulse File, audio fmt not 1");
+            return;
+         }
+         inpF.read(buffer, 0x02);   // number of channels = 1 or 2
+         if (inpF.isExhausted() || (buffer[0] != 0x01 && buffer[0] != 0x02) || buffer[1] != 0)
+         {
+            goToResults(MiscError, "Invalid Impulse File, number channels not 1 or 2");
+            return;
+         }
+         int numCh = buffer[0];
+         inpF.read(buffer, 0x04);   // sample rate = 44100
+         if (inpF.isExhausted() || buffer[0] != 0x44 || buffer[1] != 0xac || buffer[2] != 0 || buffer[3] != 0)
+         {
+            goToResults(MiscError, "Invalid Impulse File, not 44100 Hz");
+            return;
+         }
+         inpF.read(buffer, 0x06);   // skip byte rate and block align
+         if (inpF.isExhausted())
+         {
+            goToResults(MiscError, "Invalid Impulse File");
+            return;
+         }
+         inpF.read(buffer, 0x02);   // bits per sample, lsb first
+         if (inpF.isExhausted())
+         {
+            goToResults(MiscError, "Invalid Impulse File");
+            return;
+         }
+         juce::uint16 bitsPerSample =  (juce::uint16)buffer[0] | ((juce::uint16)buffer[1] << 8);
+         juce::uint16 bytesPerSample = (bitsPerSample / 8) + ((bitsPerSample & 0x07) ? 1 : 0);
+         if (inpF.isExhausted() || bytesPerSample > 4 || bytesPerSample == 0)
+         {
+            goToResults(MiscError, "Invalid Impulse File, bad bytes per sample");
+            return;
+         }
+
+         while (1)               // skip non 'data' chunks
+         {
+            if (inpF.isExhausted())
+            {
+               goToResults(MiscError, "Invalid Impulse File, could not find 'data' chunk");
+               return;
+            }
+            inpF.read(buffer, 0x04);
+            if (buffer[0] == 'd' && buffer[1] == 'a' && buffer[2] == 't' && buffer[3] == 'a')
+               break;
+            inpF.read(buffer, 0x04);   // byte count in non 'data' chunk, skip it
+            juce::int64 skipBytes = (juce::uint16)buffer[0] | ((juce::uint16)buffer[1] << 8) | ((juce::uint32)buffer[2] << 16) | ((juce::uint32)buffer[3] << 24);
+            inpF.skipNextBytes(skipBytes);
+         }
+
+         inpF.read(buffer, 0x04);   // byte count in 'data'
+         juce::uint32 CoefCnt =  (juce::uint16)buffer[0] | ((juce::uint16)buffer[1] << 8) | ((juce::uint32)buffer[2] << 16) | ((juce::uint32)buffer[3] << 24);
+         CoefCnt /= bytesPerSample * numCh;
+         if (monoLeft == 0)
+         {
+            if (CoefCnt > 128)
+               CoefCnt = 128;
+         }
+         else
+         {
+            if (CoefCnt > 208)
+               CoefCnt = 208;
+         }
+
+         if (inpF.isExhausted() || CoefCnt == 0)
+         {
+            goToResults(MiscError, "Invalid Impulse File");
+            return;
+         }
+
+         // Note: address = 4  due to hdrBuf above
+         bytesRead = 8;
+         unsigned char addrBuf[]= { 0x00,0x05,0x00,0x00, 0x00,0x00,0x08,0x00, };
+         addrBuf[2] = (idx * 2048) >> 8;
+         addrBuf[3] = (unsigned char)(idx * 2048);
+         memImage->copyFrom(addrBuf, address, bytesRead);
+         address += bytesRead;
+
+         bCnt = 0;   // start data byte count
+
+         // Add coef count, max = 128
+         // we should read the data count in the wav file to check the size
+         //
+         buffer[0] = 0x00;
+         buffer[1] = 0x00;
+         buffer[2] = CoefCnt >> 8;
+         buffer[3] = CoefCnt;
+         bytesRead = 4;
+         memImage->copyFrom(buffer, address, bytesRead);
+         address += bytesRead;
+         bCnt    += bytesRead;
+
+         while (CoefCnt--)
+         {
+            if (inpF.isExhausted())
+            {
+               goToResults(MiscError, "Invalid Impulse File, not enough samples");
+               return;
+            }
+
+            buffVal[0] = buffVal[1] = buffVal[2] = buffVal[3] = 0;
+            inpF.read(buffVal, bytesPerSample);    // lsb,...,msb
+            juce::int32 bVal = buffVal[0];
+            bVal |= (unsigned long)buffVal[1] << 8;
+            bVal |= (unsigned long)buffVal[2] << 16;
+            bVal |= (unsigned long)buffVal[3] << 24;
+            switch (bytesPerSample)
+            {
+            case 1:
+               if (bVal &  0x00000080)
+                  bVal |= 0xffffff00;
+               bVal <<= 4*5;     // convert to 4.28
+               break;
+            case 2:
+               if (bVal &  0x00008000)
+                  bVal |= 0xffff0000;
+               bVal <<= 4*3;     // convert to 4.28
+               break;
+            case 3:
+               if (bVal &  0x00800000)
+                  bVal |= 0xff000000;
+               bVal <<= 4*1;     // convert to 4.28
+               break;
+            case 4:
+               bVal >>= 4;    // convert to 4.28
+               if (bVal &  0x08000000)
+                  bVal |= 0xf0000000;
+               break;
+            }
+            float fc = (float)bVal * gain;
+            bVal = (juce::int32) fc;
+            buffer[0] = (unsigned char)(bVal >> 24);
+            buffer[1] = (unsigned char)(bVal >> 16);
+            buffer[2] = (unsigned char)(bVal >> 8);
+            buffer[3] = (unsigned char)(bVal);
+            bytesRead = 4;
+#if 0 // test, force dry
+            if (firstCoef)
+               buffer[1] = 0x10;
+            else
+               buffer[1] = 0x00;
+            buffer[2] = 0x00;
+            buffer[3] = 0x00;
+            buffer[4] = 0x00;
+            firstCoef = 0;
+#endif
+
+            memImage->copyFrom(buffer, address, bytesRead);
+            address += bytesRead;
+            bCnt    += bytesRead;
+
+            if (numCh == 2)
+            {
+               // Ignore the other channel
+               inpF.read(buffVal, bytesPerSample);    // lsb,...,msb
+            }
+         }
+         // Fill to end of cab, 2048 bytes total  (2048 in vC56 else it was 1024)
+         // *** Note
+         buffer[0] = 0xff;
+         bytesRead = 1;
+         // Move to name location
+         int maxCh= 22;
+         while (bCnt < (2048-maxCh-1-2))
+         {
+            memImage->copyFrom(buffer, address, bytesRead);
+            address += bytesRead;
+            bCnt    += bytesRead;
+         }
+         // Add name
+         labelName = labelName.toUpperCase();
+         if (!labelName.compareIgnoreCase((juce::String)"USER") || labelName.isEmpty())
+         {
+            labelName.printf((juce::String)"USER %d", idx+1);
+         }
+         /*
+         */
+         int i;
+         for (i=0; i<maxCh; i++)
+         {
+            buffer[i] = labelName[i];
+            if (buffer[i] == 0)
+               break;
+         }
+         for (; i<maxCh; i++)
+            buffer[i]= ' ';
+         buffer[maxCh] = 0;
+         bytesRead = maxCh+1;
+         memImage->copyFrom(buffer, address, bytesRead);
+         address += bytesRead;
+         bCnt    += bytesRead;
+
+
+         // Move to cab index and perm location
+         while (bCnt < (2048-2))
+         {
+            memImage->copyFrom(buffer, address, bytesRead);
+            address += bytesRead;
+            bCnt    += bytesRead;
+         }
+         // Add two more bytes indicating the cab's index and permanence bit
+         buffer[0] = idx;
+         buffer[1] = (perm2)?2:perm;
+         bytesRead = 2;
+         memImage->copyFrom(buffer, address, bytesRead);
+         address += bytesRead;
+         bCnt    += bytesRead;
+
